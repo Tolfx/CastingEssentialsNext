@@ -4,6 +4,7 @@
 #include "PluginBase/ICameraOverride.h"
 #include "PluginBase/Modules.h"
 
+#include <igameevents.h>
 #include <convar.h>
 #include <mathlib/vector.h>
 #include <shareddefs.h>
@@ -14,6 +15,7 @@ typedef CHandle<C_BaseEntity> EHANDLE;
 
 #include <array>
 #include <optional>
+#include <vector>
 
 enum class TFTeam;
 enum class TFClassType;
@@ -31,7 +33,7 @@ enum class ModeSwitchReason
     SpecPosition,
 };
 
-class CameraTools final : public Module<CameraTools>, public ICameraOverride
+class CameraTools final : public Module<CameraTools>, public ICameraOverride, public IGameEventListener2
 {
 public:
     CameraTools();
@@ -48,6 +50,11 @@ public:
     ModeSwitchReason GetModeSwitchReason() const { return m_SwitchReason; }
 
 protected:
+    void OnLoad() override;
+    void OnUnload() override;
+    void LevelInit() override;
+    void LevelShutdown() override;
+
     bool InToolModeOverride() const override;
     bool IsThirdPersonCameraOverride() const override { return m_IsTaunting; }
     bool SetupEngineViewOverride(Vector& origin, QAngle& angles, float& fov) override;
@@ -149,11 +156,12 @@ private:
     void SpecPlayer(int playerIndex);
 
     void OnTick(bool inGame) override;
+    void FireGameEvent(IGameEvent* event) override;
 
     std::optional<VariablePusher<Vector>> m_OldViewHeight;
     std::optional<VariablePusher<Vector>> m_OldDuckViewHeight;
     static EntityOffset<float> s_ViewOffsetZOffset;
-    static EntityOffset<EHANDLE> s_RocketOwnerOffset;
+    static EntityOffset<EHANDLE> s_RocketTargetOffset;
     bool FixViewHeights();
 
     void ToggleDisableViewPunches(const ConVar* var);
@@ -171,6 +179,10 @@ private:
 
     ModeSwitchReason m_SwitchReason;
 
-    int m_LastRocketOwner;
+    int m_LastRocketTarget;
     int m_ForcedTeam;
+
+    int m_InitHookId;
+    bool InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum);
+    std::vector<EHANDLE> m_Rockets;
 };
