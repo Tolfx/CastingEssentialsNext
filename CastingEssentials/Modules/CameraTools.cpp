@@ -29,6 +29,7 @@
 MODULE_REGISTER(CameraTools);
 
 EntityOffset<float> CameraTools::s_ViewOffsetZOffset;
+EntityOffset<EHANDLE> CameraTools::s_RocketOwnerOffset;
 
 CameraTools::CameraTools()
     : ce_cameratools_show_mode("ce_cameratools_show_mode", "0", FCVAR_NONE,
@@ -49,6 +50,15 @@ CameraTools::CameraTools()
                                         [](IConVar* var, const char* pOldValue, float flOldValue) {
                                             GetModule()->ToggleForceValidTarget(var, pOldValue, flOldValue);
                                         }),
+      ce_cameratools_force_team("ce_cameratools_force_team", "", FCVAR_NONE,
+                                "Forces the camera to only spectate players on the specified team (red/blue).",
+                                [](IConVar* var, const char* pOldValue, float flOldValue) {
+                                    GetModule()->ChangeForceTeam(var, pOldValue, flOldValue);
+                                }),
+      ce_cameratools_dodgeball_enable("ce_cameratools_autodirector_dodgeball", "0", FCVAR_NONE,
+                                      "Enables dodgeball camera logic (switch to rocket owner)."),
+      ce_cameratools_spec_rocket("ce_cameratools_spec_rocket", "0", FCVAR_NONE, "Always spectate the rocket."),
+
       ce_cameratools_spec_player_alive("ce_cameratools_spec_player_alive", "1", FCVAR_NONE,
                                        "Prevents spectating dead players."),
       ce_cameratools_fix_view_heights("ce_cameratools_fix_view_heights", "0", FCVAR_NONE,
@@ -227,6 +237,7 @@ bool CameraTools::CheckDependencies()
     }
 
     s_ViewOffsetZOffset = Entities::GetEntityProp<float>("CTFPlayer", "m_vecViewOffset[2]");
+    s_RocketOwnerOffset = Entities::GetEntityProp<EHANDLE>("CBaseEntity", "m_hOwnerEntity");
 
     return ready;
 }
@@ -620,6 +631,63 @@ void CameraTools::OnTick(bool inGame)
 
     if (inGame)
     {
+        if (ce_cameratools_spec_rocket.GetBool() || ce_cameratools_dodgeball_enable.GetBool())
+        {
+            C_BaseEntity* rocket = nullptr;
+            for (int i = Interfaces::GetEngineTool()->GetMaxClients() + 1; i <= Interfaces::GetClientEntityList()->GetMaxEntities(); i++)
+            {
+                IClientEntity* ent = Interfaces::GetClientEntityList()->GetClientEntity(i);
+                if (!ent)
+                    continue;
+
+                ClientClass* cc = ent->GetClientClass();
+                if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
+                {
+                    rocket = ent->GetBaseEntity();
+                    break;
+                }
+            }
+
+            if (rocket)
+            {
+                if (ce_cameratools_spec_rocket.GetBool())
+                {
+                    HLTVCameraOverride* hltv = Interfaces::GetHLTVCamera();
+                    if (hltv)
+                    {
+                        if (hltv->m_iTraget1 != rocket->entindex())
+                        {
+                            hltv->SetPrimaryTarget(rocket->entindex());
+                            hltv->SetMode(OBS_MODE_CHASE);
+                        }
+                    }
+                }
+                else if (ce_cameratools_dodgeball_enable.GetBool())
+                {
+                    auto ownerHandle = s_RocketOwnerOffset.GetValue(rocket);
+                    int ownerIndex = ownerHandle.GetEntryIndex();
+
+                    if (ownerIndex != m_LastRocketOwner)
+                    {
+                        m_LastRocketOwner = ownerIndex;
+
+                        Player* p = Player::GetPlayer(ownerIndex);
+                        if (p)
+                        {
+                            if (m_ForcedTeam == 0 || (int)p->GetTeam() == m_ForcedTeam)
+                            {
+                                SpecPlayer(ownerIndex);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                m_LastRocketOwner = -1;
+            }
+        }
+
         if (ce_cameratools_show_mode.GetBool())
         {
             int mode = -1;
@@ -1027,6 +1095,17 @@ void CameraTools::SetModeOverride(int iMode)
     m_SwitchReason = ModeSwitchReason::Unknown;
 }
 
+void CameraTools::ChangeForceTeam(IConVar* var, const char* pOldValue, float flOldValue)
+{
+    const char* val = ce_cameratools_force_team.GetString();
+    if (!stricmp(val, "red"))
+        m_ForcedTeam = (int)TFTeam::Red;
+    else if (!stricmp(val, "blue") || !stricmp(val, "blu"))
+        m_ForcedTeam = (int)TFTeam::Blue;
+    else
+        m_ForcedTeam = 0;
+}
+
 void CameraTools::SetPrimaryTargetOverride(int nEntity)
 {
     VPROF_BUDGET(__FUNCTION__, VPROF_BUDGETGROUP_CE);
@@ -1037,6 +1116,30 @@ void CameraTools::SetPrimaryTargetOverride(int nEntity)
 
     if (!Interfaces::GetClientEntityList()->GetClientEntity(nEntity))
         nEntity = ((HLTVCameraOverride*)Interfaces::GetHLTVCamera())->m_iTraget1;
+
+    if (m_ForcedTeam != 0)
+    {
+        IClientEntity* pEntity = Interfaces::GetClientEntityList()->GetClientEntity(nEntity);
+        if (pEntity)
+        {
+            C_BaseEntity* pBaseEntity = pEntity->GetBaseEntity();
+            if (pBaseEntity)
+            {
+                bool isRocket = false;
+                if (ce_cameratools_spec_rocket.GetBool())
+                {
+                    if (pEntity->GetClientClass() && !strcmp(pEntity->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket"))
+                        isRocket = true;
+                }
+
+                if (!isRocket)
+                {
+                    if (pBaseEntity->GetTeamNumber() != m_ForcedTeam)
+                        return;
+                }
+            }
+        }
+    }
 
     GetHooks()->GetOriginal<HookFunc::C_HLTVCamera_SetPrimaryTarget>()(nEntity);
     GetHooks()->SetState<HookFunc::C_HLTVCamera_SetPrimaryTarget>(Hooking::HookAction::SUPERCEDE);

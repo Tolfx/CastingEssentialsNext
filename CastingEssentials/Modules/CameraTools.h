@@ -60,9 +60,13 @@ private:
     ConVar ce_cameratools_autodirector_mode;
     ConVar ce_cameratools_force_target;
     ConVar ce_cameratools_force_valid_target;
+    ConVar ce_cameratools_force_team;
     ConVar ce_cameratools_spec_player_alive;
     ConVar ce_cameratools_fix_view_heights;
     ConVar ce_cameratools_disable_view_punches;
+
+    ConVar ce_cameratools_dodgeball_enable;
+    ConVar ce_cameratools_spec_rocket;
 
     ConVar ce_tplock_enable;
     ConVar ce_tplock_taunt_enable;
@@ -89,6 +93,7 @@ private:
 
     void ChangeForceMode(IConVar* var, const char* pOldValue, float flOldValue);
     void ChangeForceTarget(IConVar* var, const char* pOldValue, float flOldValue);
+    void ChangeForceTeam(IConVar* var, const char* pOldValue, float flOldValue);
     void ToggleForceValidTarget(IConVar* var, const char* pOldValue, float flOldValue);
 
     bool ParseSpecPosCommand(const CCommand& command, Vector& pos, QAngle& angle, ObserverMode& mode,
@@ -144,6 +149,7 @@ private:
     std::optional<VariablePusher<Vector>> m_OldViewHeight;
     std::optional<VariablePusher<Vector>> m_OldDuckViewHeight;
     static EntityOffset<float> s_ViewOffsetZOffset;
+    static EntityOffset<EHANDLE> s_RocketOwnerOffset;
     bool FixViewHeights();
 
     void ToggleDisableViewPunches(const ConVar* var);
@@ -160,4 +166,7 @@ private:
     void AttachHooks(bool attach);
 
     ModeSwitchReason m_SwitchReason;
+
+    int m_LastRocketOwner;
+    int m_ForcedTeam;
 };
