@@ -859,9 +859,8 @@ bool CameraTools::PerformRocketCamera(Vector& origin, QAngle& angles, float& fov
         return false;
 
     Vector velocity;
-    rocket->EstimateAbsVelocity(velocity);
-
-    if (velocity.LengthSqr() < 1)
+    // rocket->EstimateAbsVelocity(velocity);
+    // if (velocity.LengthSqr() < 1)
     {
         Vector forward;
         AngleVectors(rocket->GetAbsAngles(), &forward);
