@@ -842,7 +842,11 @@ void CameraTools::UpdateIsTaunting()
 
 bool CameraTools::PerformRocketCamera(Vector& origin, QAngle& angles, float& fov)
 {
-    int targetIndex = CameraState::GetLocalObserverTarget();
+    C_BaseEntity* observerTarget = CameraState::GetLocalObserverTarget();
+    if (!observerTarget)
+        return false;
+
+    int targetIndex = observerTarget->entindex();
     IClientEntity* target = Interfaces::GetClientEntityList()->GetClientEntity(targetIndex);
     if (!target)
         return false;
@@ -921,11 +925,15 @@ bool CameraTools::InToolModeOverride() const
 
     if (ce_cameratools_spec_rocket.GetBool() && CameraState::GetLocalObserverMode() == ObserverMode::OBS_MODE_CHASE)
     {
-        int targetIndex = CameraState::GetLocalObserverTarget();
-        IClientEntity* target = Interfaces::GetClientEntityList()->GetClientEntity(targetIndex);
-        if (target && target->GetClientClass() &&
-            !strcmp(target->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket"))
-            return true;
+        C_BaseEntity* observerTarget = CameraState::GetLocalObserverTarget();
+        if (observerTarget)
+        {
+            int targetIndex = observerTarget->entindex();
+            IClientEntity* target = Interfaces::GetClientEntityList()->GetClientEntity(targetIndex);
+            if (target && target->GetClientClass() &&
+                !strcmp(target->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket"))
+                return true;
+        }
     }
 
     return false;
