@@ -183,4 +183,5 @@ private:
     int m_InitHookId;
     bool InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum);
     std::vector<EHANDLE> m_Rockets;
+    std::vector<int> m_NewEntities;
 };

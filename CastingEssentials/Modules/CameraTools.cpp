@@ -193,12 +193,7 @@ bool CameraTools::InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum)
 
     if (result)
     {
-        ClientClass* cc = pThis->GetClientClass();
-        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
-        {
-            if (std::find(m_Rockets.begin(), m_Rockets.end(), pThis) == m_Rockets.end())
-                m_Rockets.push_back(pThis);
-        }
+        m_NewEntities.push_back(entnum);
     }
 
     return result;
@@ -296,6 +291,7 @@ void CameraTools::LevelInit()
 void CameraTools::LevelShutdown()
 {
     m_Rockets.clear();
+    m_NewEntities.clear();
     if (Interfaces::GetGameEventManager())
         Interfaces::GetGameEventManager()->RemoveListener(this);
 }
@@ -724,6 +720,29 @@ void CameraTools::OnTick(bool inGame)
 
     if (inGame)
     {
+        // Process new entities
+        if (!m_NewEntities.empty())
+        {
+            for (int entnum : m_NewEntities)
+            {
+                IClientEntity* pEntity = Interfaces::GetClientEntityList()->GetClientEntity(entnum);
+                if (pEntity)
+                {
+                    C_BaseEntity* pBaseEntity = pEntity->GetBaseEntity();
+                    if (pBaseEntity)
+                    {
+                        ClientClass* cc = pBaseEntity->GetClientClass();
+                        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
+                        {
+                            if (std::find(m_Rockets.begin(), m_Rockets.end(), pBaseEntity) == m_Rockets.end())
+                                m_Rockets.push_back(pBaseEntity);
+                        }
+                    }
+                }
+            }
+            m_NewEntities.clear();
+        }
+
         // Clean up invalid rockets
         if (!m_Rockets.empty())
             m_Rockets.erase(std::remove_if(m_Rockets.begin(), m_Rockets.end(), [](const EHANDLE& h) { return !h.IsValid(); }), m_Rockets.end());
