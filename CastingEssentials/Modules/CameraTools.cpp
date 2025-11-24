@@ -121,7 +121,7 @@ CameraTools::CameraTools()
           "Spectates a player by entindex"),
       ce_cameratools_on_deflect(
           "ce_cameratools_on_deflect", [](const CCommand& args) { GetModule()->OnDeflect(args); },
-          "Callback for dodgeball deflects. Usage: ce_cameratools_on_deflect <target_index>"),
+          "Callback for dodgeball deflects. Usage: ce_cameratools_on_deflect <target_index>", FCVAR_SERVER_CAN_EXECUTE),
       ce_cameratools_spec_pos(
           "ce_cameratools_spec_pos", [](const CCommand& args) { GetModule()->SpecPosition(args); },
           "Moves the camera to a given position and angle."),
