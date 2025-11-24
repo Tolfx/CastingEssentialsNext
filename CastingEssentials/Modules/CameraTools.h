@@ -9,6 +9,9 @@
 #include <shareddefs.h>
 #include <ehandle.h>
 
+class C_BaseEntity;
+typedef CHandle<C_BaseEntity> EHANDLE;
+
 #include <array>
 #include <optional>
 

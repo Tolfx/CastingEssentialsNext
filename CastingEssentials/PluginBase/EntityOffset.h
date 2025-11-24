@@ -9,6 +9,8 @@
 #include <limits>
 #include <set>
 #include <vector>
+#include <utility>
+#include <cstddef>
 
 class IClientNetworkable;
 
@@ -69,6 +71,11 @@ public:
         : m_Offset(offset), m_ValidTypes(std::move(validRecvTables))
     {
     }
+
+    EntityOffset(const EntityOffset&) = default;
+    EntityOffset(EntityOffset&&) = default;
+    EntityOffset& operator=(const EntityOffset&) = default;
+    EntityOffset& operator=(EntityOffset&&) = default;
 
     inline const TValue& GetValue(const IClientNetworkable* entity) const
     {
