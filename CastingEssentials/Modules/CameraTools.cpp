@@ -162,41 +162,11 @@ CameraTools::CameraTools()
     ParseTPLockValuesInto(&ce_tplock_taunt_dps, ce_tplock_taunt_dps.GetDefault(), m_TPLockTaunt.m_DPS);
     m_TPLockTaunt.m_Bone = m_TPLockDefault.m_Bone = ce_tplock_bone.GetString();
 
-    m_InitHookId = GetHooks()->AddHook<HookFunc::C_BaseEntity_Init>(std::bind(&CameraTools::InitHook, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-
-    // Scan for existing rockets
-    for (int i = Interfaces::GetEngineTool()->GetMaxClients() + 1; i <= Interfaces::GetClientEntityList()->GetMaxEntities(); i++)
-    {
-        IClientEntity* ent = Interfaces::GetClientEntityList()->GetClientEntity(i);
-        if (!ent)
-            continue;
-
-        ClientClass* cc = ent->GetClientClass();
-        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
-        {
-            m_Rockets.push_back(ent->GetBaseEntity());
-        }
-    }
+    m_KnownEntitySerials.resize(Interfaces::GetClientEntityList()->GetMaxEntities(), -1);
 }
 
 CameraTools::~CameraTools()
 {
-    GetHooks()->RemoveHook<HookFunc::C_BaseEntity_Init>(m_InitHookId, __FUNCSIG__);
-}
-
-bool CameraTools::InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum)
-{
-    auto original = GetHooks()->GetOriginal<HookFunc::C_BaseEntity_Init>();
-    bool result = original(pThis, entnum, iSerialNum);
-
-    GetHooks()->SetState<HookFunc::C_BaseEntity_Init>(Hooking::HookAction::SUPERCEDE);
-
-    if (result)
-    {
-        m_NewEntities.push_back(entnum);
-    }
-
-    return result;
 }
 
 bool CameraTools::CheckDependencies()
@@ -291,7 +261,7 @@ void CameraTools::LevelInit()
 void CameraTools::LevelShutdown()
 {
     m_Rockets.clear();
-    m_NewEntities.clear();
+    std::fill(m_KnownEntitySerials.begin(), m_KnownEntitySerials.end(), -1);
     if (Interfaces::GetGameEventManager())
         Interfaces::GetGameEventManager()->RemoveListener(this);
 }
@@ -720,27 +690,33 @@ void CameraTools::OnTick(bool inGame)
 
     if (inGame)
     {
-        // Process new entities
-        if (!m_NewEntities.empty())
+        // Scan for new rockets
+        const int maxEntity = Interfaces::GetClientEntityList()->GetHighestEntityIndex();
+        if ((int)m_KnownEntitySerials.size() <= maxEntity)
+            m_KnownEntitySerials.resize(maxEntity + 1, -1);
+
+        for (int i = Interfaces::GetEngineTool()->GetMaxClients() + 1; i <= maxEntity; i++)
         {
-            for (int entnum : m_NewEntities)
+            IClientEntity* ent = Interfaces::GetClientEntityList()->GetClientEntity(i);
+            if (!ent)
             {
-                IClientEntity* pEntity = Interfaces::GetClientEntityList()->GetClientEntity(entnum);
-                if (pEntity)
+                m_KnownEntitySerials[i] = -1;
+                continue;
+            }
+
+            const int serial = ent->GetRefEHandle().GetSerialNumber();
+            if (m_KnownEntitySerials[i] != serial)
+            {
+                m_KnownEntitySerials[i] = serial;
+
+                ClientClass* cc = ent->GetClientClass();
+                if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
                 {
-                    C_BaseEntity* pBaseEntity = pEntity->GetBaseEntity();
-                    if (pBaseEntity)
-                    {
-                        ClientClass* cc = pBaseEntity->GetClientClass();
-                        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
-                        {
-                            if (std::find(m_Rockets.begin(), m_Rockets.end(), pBaseEntity) == m_Rockets.end())
-                                m_Rockets.push_back(pBaseEntity);
-                        }
-                    }
+                    C_BaseEntity* pBaseEntity = ent->GetBaseEntity();
+                    if (pBaseEntity && std::find(m_Rockets.begin(), m_Rockets.end(), pBaseEntity) == m_Rockets.end())
+                        m_Rockets.push_back(pBaseEntity);
                 }
             }
-            m_NewEntities.clear();
         }
 
         // Clean up invalid rockets
