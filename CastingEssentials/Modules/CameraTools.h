@@ -33,7 +33,7 @@ enum class ModeSwitchReason
     SpecPosition,
 };
 
-class CameraTools final : public Module<CameraTools>, public ICameraOverride, public IGameEventListener2
+class CameraTools final : public Module<CameraTools>, public ICameraOverride
 {
 public:
     CameraTools();
@@ -75,7 +75,6 @@ private:
     ConVar ce_cameratools_disable_view_punches;
 
     ConVar ce_cameratools_dodgeball_enable;
-    ConVar ce_cameratools_spec_rocket;
 
     ConVar ce_tplock_enable;
     ConVar ce_tplock_taunt_enable;
@@ -96,9 +95,11 @@ private:
     ConCommand ce_cameratools_spec_steamid;
     ConCommand ce_cameratools_spec_index;
     ConCommand ce_cameratools_spec_entindex;
+    ConCommand ce_cameratools_on_deflect;
 
     ConCommand ce_cameratools_show_users;
     void ShowUsers(const CCommand& command);
+    void OnDeflect(const CCommand& command);
 
     void ChangeForceMode(IConVar* var, const char* pOldValue, float flOldValue);
     void ChangeForceTarget(IConVar* var, const char* pOldValue, float flOldValue);
@@ -154,12 +155,10 @@ private:
     void SpecPlayer(int playerIndex);
 
     void OnTick(bool inGame) override;
-    void FireGameEvent(IGameEvent* event) override;
 
     std::optional<VariablePusher<Vector>> m_OldViewHeight;
     std::optional<VariablePusher<Vector>> m_OldDuckViewHeight;
     static EntityOffset<float> s_ViewOffsetZOffset;
-    static EntityOffset<EHANDLE> s_RocketTargetOffset;
     bool FixViewHeights();
 
     void ToggleDisableViewPunches(const ConVar* var);
@@ -177,9 +176,5 @@ private:
 
     ModeSwitchReason m_SwitchReason;
 
-    int m_LastRocketTarget;
     int m_ForcedTeam;
-
-    std::vector<EHANDLE> m_Rockets;
-    std::vector<int> m_KnownEntitySerials;
 };
