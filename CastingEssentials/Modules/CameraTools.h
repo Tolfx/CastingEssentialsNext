@@ -7,6 +7,7 @@
 #include <convar.h>
 #include <mathlib/vector.h>
 #include <shareddefs.h>
+#include <ehandle.h>
 
 #include <array>
 #include <optional>
