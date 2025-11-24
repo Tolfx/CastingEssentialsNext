@@ -186,12 +186,22 @@ CameraTools::~CameraTools()
 
 bool CameraTools::InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum)
 {
-    if (pThis->GetClientClass() && !strcmp(pThis->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket"))
+    auto original = GetHooks()->GetOriginal<HookFunc::C_BaseEntity_Init>();
+    bool result = original(pThis, entnum, iSerialNum);
+
+    GetHooks()->SetState<HookFunc::C_BaseEntity_Init>(Hooking::HookAction::SUPERCEDE);
+
+    if (result)
     {
-        m_Rockets.push_back(pThis);
+        ClientClass* cc = pThis->GetClientClass();
+        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
+        {
+            if (std::find(m_Rockets.begin(), m_Rockets.end(), pThis) == m_Rockets.end())
+                m_Rockets.push_back(pThis);
+        }
     }
-    
-    return GetHooks()->GetOriginal<HookFunc::C_BaseEntity_Init>()(pThis, entnum, iSerialNum);
+
+    return result;
 }
 
 bool CameraTools::CheckDependencies()
@@ -275,54 +285,7 @@ bool CameraTools::CheckDependencies()
     return ready;
 }
 
-void CameraTools::OnLoad()
-{
-    m_InitHookId = GetHooks()->AddHook<HookFunc::C_BaseEntity_Init>(std::bind(&CameraTools::InitHook, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-    // Initial scan
-    if (Interfaces::GetClientEntityList())
-    {
-        for (int i = Interfaces::GetEngineTool()->GetMaxClients() + 1; i <= Interfaces::GetClientEntityList()->GetMaxEntities(); i++)
-        {
-            IClientEntity* ent = Interfaces::GetClientEntityList()->GetClientEntity(i);
-            if (!ent)
-                continue;
-
-            ClientClass* cc = ent->GetClientClass();
-            if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
-            {
-                C_BaseEntity* rocket = ent->GetBaseEntity();
-                if (rocket)
-                    m_Rockets.push_back(rocket);
-            }
-        }
-    }
-}
-
-void CameraTools::OnUnload()
-{
-    GetHooks()->RemoveHook<HookFunc::C_BaseEntity_Init>(m_InitHookId, __FUNCSIG__);
-}
-
-bool CameraTools::InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum)
-{
-    auto original = GetHooks()->GetOriginal<HookFunc::C_BaseEntity_Init>();
-    bool result = original(pThis, entnum, iSerialNum);
-
-    GetHooks()->SetState<HookFunc::C_BaseEntity_Init>(Hooking::HookAction::SUPERCEDE);
-
-    if (result)
-    {
-        ClientClass* cc = pThis->GetClientClass();
-        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
-        {
-            if (std::find(m_Rockets.begin(), m_Rockets.end(), pThis) == m_Rockets.end())
-                m_Rockets.push_back(pThis);
-        }
-    }
-
-    return result;
-}
 
 void CameraTools::LevelInit()
 {
