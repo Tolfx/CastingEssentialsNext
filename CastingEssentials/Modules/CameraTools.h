@@ -37,7 +37,7 @@ class CameraTools final : public Module<CameraTools>, public ICameraOverride, pu
 {
 public:
     CameraTools();
-    virtual ~CameraTools() = default;
+    virtual ~CameraTools();
 
     static bool CheckDependencies();
     static constexpr __forceinline const char* GetModuleName() { return "Camera Tools"; }
@@ -50,8 +50,6 @@ public:
     ModeSwitchReason GetModeSwitchReason() const { return m_SwitchReason; }
 
 protected:
-    void OnLoad() override;
-    void OnUnload() override;
     void LevelInit() override;
     void LevelShutdown() override;
 

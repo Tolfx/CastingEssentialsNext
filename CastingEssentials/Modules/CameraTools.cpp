@@ -161,6 +161,37 @@ CameraTools::CameraTools()
     ParseTPLockValuesInto(&ce_tplock_taunt_angle, ce_tplock_taunt_angle.GetDefault(), m_TPLockTaunt.m_Angle);
     ParseTPLockValuesInto(&ce_tplock_taunt_dps, ce_tplock_taunt_dps.GetDefault(), m_TPLockTaunt.m_DPS);
     m_TPLockTaunt.m_Bone = m_TPLockDefault.m_Bone = ce_tplock_bone.GetString();
+
+    m_InitHookId = GetHooks()->AddHook<HookFunc::C_BaseEntity_Init>(std::bind(&CameraTools::InitHook, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+    // Scan for existing rockets
+    for (int i = Interfaces::GetEngineTool()->GetMaxClients() + 1; i <= Interfaces::GetClientEntityList()->GetMaxEntities(); i++)
+    {
+        IClientEntity* ent = Interfaces::GetClientEntityList()->GetClientEntity(i);
+        if (!ent)
+            continue;
+
+        ClientClass* cc = ent->GetClientClass();
+        if (cc && !strcmp(cc->m_pNetworkName, "CTFProjectile_Rocket"))
+        {
+            m_Rockets.push_back(ent->GetBaseEntity());
+        }
+    }
+}
+
+CameraTools::~CameraTools()
+{
+    GetHooks()->RemoveHook<HookFunc::C_BaseEntity_Init>(m_InitHookId, __FUNCSIG__);
+}
+
+bool CameraTools::InitHook(C_BaseEntity* pThis, int entnum, int iSerialNum)
+{
+    if (pThis->GetClientClass() && !strcmp(pThis->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket"))
+    {
+        m_Rockets.push_back(pThis);
+    }
+    
+    return GetHooks()->GetOriginal<HookFunc::C_BaseEntity_Init>()(pThis, entnum, iSerialNum);
 }
 
 bool CameraTools::CheckDependencies()
@@ -699,7 +730,7 @@ void CameraTools::FireGameEvent(IGameEvent* event)
         if (rocketEnt)
         {
             C_BaseEntity* rocket = rocketEnt->GetBaseEntity();
-            if (rocket && s_RocketTargetOffset.IsValid())
+            if (rocket && s_RocketTargetOffset.IsInit())
             {
                 auto targetHandle = s_RocketTargetOffset.GetValue(rocket);
                 int targetIndex = targetHandle.GetEntryIndex();
