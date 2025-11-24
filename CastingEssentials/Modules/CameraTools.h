@@ -75,6 +75,7 @@ private:
     ConVar ce_cameratools_disable_view_punches;
 
     ConVar ce_cameratools_dodgeball_enable;
+    ConVar ce_cameratools_spec_rocket;
 
     ConVar ce_tplock_enable;
     ConVar ce_tplock_taunt_enable;
@@ -96,10 +97,12 @@ private:
     ConCommand ce_cameratools_spec_index;
     ConCommand ce_cameratools_spec_entindex;
     ConCommand ce_cameratools_on_deflect;
+    ConCommand ce_cameratools_on_rocket_spawn;
 
     ConCommand ce_cameratools_show_users;
     void ShowUsers(const CCommand& command);
     void OnDeflect(const CCommand& command);
+    void OnRocketSpawn(const CCommand& command);
 
     void ChangeForceMode(IConVar* var, const char* pOldValue, float flOldValue);
     void ChangeForceTarget(IConVar* var, const char* pOldValue, float flOldValue);
@@ -171,6 +174,7 @@ private:
     Player* m_LastTargetPlayer;
 
     bool PerformTPLock(const TPLockRuleset& ruleset, Vector& origin, QAngle& angles, float& fov);
+    bool PerformRocketCamera(Vector& origin, QAngle& angles, float& fov);
 
     void AttachHooks(bool attach);
 

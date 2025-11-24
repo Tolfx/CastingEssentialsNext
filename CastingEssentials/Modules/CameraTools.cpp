@@ -56,6 +56,7 @@ CameraTools::CameraTools()
                                 }),
       ce_cameratools_dodgeball_enable("ce_cameratools_autodirector_dodgeball", "0", FCVAR_NONE,
                                       "Enables dodgeball camera logic (switch to rocket owner)."),
+      ce_cameratools_spec_rocket("ce_cameratools_spec_rocket", "0", FCVAR_NONE, "Always spectate the rocket."),
 
       ce_cameratools_spec_player_alive("ce_cameratools_spec_player_alive", "1", FCVAR_NONE,
                                        "Prevents spectating dead players."),
@@ -122,6 +123,10 @@ CameraTools::CameraTools()
       ce_cameratools_on_deflect(
           "ce_cameratools_on_deflect", [](const CCommand& args) { GetModule()->OnDeflect(args); },
           "Callback for dodgeball deflects. Usage: ce_cameratools_on_deflect <target_index>", FCVAR_SERVER_CAN_EXECUTE),
+      ce_cameratools_on_rocket_spawn(
+          "ce_cameratools_on_rocket_spawn", [](const CCommand& args) { GetModule()->OnRocketSpawn(args); },
+          "Callback for dodgeball rocket spawn. Usage: ce_cameratools_on_rocket_spawn <rocket_index>",
+          FCVAR_SERVER_CAN_EXECUTE),
       ce_cameratools_spec_pos(
           "ce_cameratools_spec_pos", [](const CCommand& args) { GetModule()->SpecPosition(args); },
           "Moves the camera to a given position and angle."),
@@ -657,6 +662,37 @@ void CameraTools::OnDeflect(const CCommand& command)
     }
 }
 
+void CameraTools::OnRocketSpawn(const CCommand& command)
+{
+    if (!ce_cameratools_dodgeball_enable.GetBool())
+        return;
+
+    if (command.ArgC() < 2)
+        return;
+
+    int rocketIndex = atoi(command.Arg(1));
+
+    if (ce_cameratools_spec_rocket.GetBool())
+    {
+        if (Interfaces::GetEngineClient()->IsHLTV())
+        {
+            try
+            {
+                HLTVCameraOverride* const hltvcamera = Interfaces::GetHLTVCamera();
+                if (hltvcamera)
+                {
+                    hltvcamera->SetPrimaryTarget(rocketIndex);
+                    hltvcamera->SetMode(OBS_MODE_CHASE);
+                }
+            }
+            catch (bad_pointer& e)
+            {
+                Warning("%s\n", e.what());
+            }
+        }
+    }
+}
+
 void CameraTools::OnTick(bool inGame)
 {
     VPROF_BUDGET(__FUNCTION__, VPROF_BUDGETGROUP_CE);
@@ -804,6 +840,51 @@ void CameraTools::UpdateIsTaunting()
     m_IsTaunting = player->CheckCondition(TFCond::TFCond_Taunting);
 }
 
+bool CameraTools::PerformRocketCamera(Vector& origin, QAngle& angles, float& fov)
+{
+    int targetIndex = CameraState::GetLocalObserverTarget();
+    IClientEntity* target = Interfaces::GetClientEntityList()->GetClientEntity(targetIndex);
+    if (!target)
+        return false;
+
+    if (!target->GetClientClass() || strcmp(target->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket") != 0)
+        return false;
+
+    C_BaseEntity* rocket = target->GetBaseEntity();
+    if (!rocket)
+        return false;
+
+    Vector velocity;
+    rocket->EstimateAbsVelocity(velocity);
+
+    if (velocity.LengthSqr() < 1)
+    {
+        Vector forward;
+        AngleVectors(rocket->GetAbsAngles(), &forward);
+        velocity = forward;
+    }
+
+    VectorAngles(velocity, angles);
+
+    Vector forward;
+    AngleVectors(angles, &forward);
+
+    Vector rocketOrigin = rocket->GetAbsOrigin();
+
+    float dist = 120.0f;
+    float height = 20.0f;
+
+    Vector idealPos = rocketOrigin - (forward * dist) + Vector(0, 0, height);
+
+    trace_t trace;
+    CTraceFilterNoNPCsOrPlayer noPlayers(nullptr, COLLISION_GROUP_NONE);
+    UTIL_TraceHull(rocketOrigin, idealPos, WALL_MIN, WALL_MAX, MASK_SOLID, &noPlayers, &trace);
+
+    origin = trace.endpos;
+
+    return true;
+}
+
 void CameraTools::AttachHooks(bool attach) { m_SetModeHook.SetEnabled(attach); }
 
 Vector CameraTools::CalcPosForAngle(const TPLockRuleset& ruleset, const Vector& orbitCenter, const QAngle& angle) const
@@ -838,6 +919,15 @@ bool CameraTools::InToolModeOverride() const
     if (m_IsTaunting)
         return true;
 
+    if (ce_cameratools_spec_rocket.GetBool() && CameraState::GetLocalObserverMode() == ObserverMode::OBS_MODE_CHASE)
+    {
+        int targetIndex = CameraState::GetLocalObserverTarget();
+        IClientEntity* target = Interfaces::GetClientEntityList()->GetClientEntity(targetIndex);
+        if (target && target->GetClientClass() &&
+            !strcmp(target->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket"))
+            return true;
+    }
+
     return false;
 }
 
@@ -851,6 +941,9 @@ bool CameraTools::SetupEngineViewOverride(Vector& origin, QAngle& angles, float&
         return PerformTPLock(m_TPLockTaunt, origin, angles, fov);
     if (ce_tplock_enable.GetBool() && CameraState::GetLocalObserverMode() == ObserverMode::OBS_MODE_CHASE)
         return PerformTPLock(m_TPLockDefault, origin, angles, fov);
+
+    if (ce_cameratools_spec_rocket.GetBool() && CameraState::GetLocalObserverMode() == ObserverMode::OBS_MODE_CHASE)
+        return PerformRocketCamera(origin, angles, fov);
 
     return false;
 }

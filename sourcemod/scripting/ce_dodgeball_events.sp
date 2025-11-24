@@ -32,3 +32,14 @@ public Action TFDB_OnRocketDeflectPre(int iIndex, int iEntity, int iOwner, int &
 
   return Plugin_Continue;
 }
+
+public void TFDB_OnRocketCreated(int iEntity, int iOwner)
+{
+  for (int i = 1; i <= MaxClients; i++)
+  {
+    if (IsClientInGame(i) && (IsClientSourceTV(i) || !IsFakeClient(i)))
+    {
+      ClientCommand(i, "ce_cameratools_on_rocket_spawn %d", iEntity);
+    }
+  }
+}
