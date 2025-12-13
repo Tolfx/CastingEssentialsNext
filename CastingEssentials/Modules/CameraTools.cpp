@@ -661,13 +661,43 @@ void CameraTools::OnDeflect(const CCommand& command)
 
     int targetIndex = atoi(command.Arg(1));
     Player* p = Player::GetPlayer(targetIndex);
-    if (p)
+    
+    // If no forced team, spec the target directly
+    if (m_ForcedTeam == 0)
     {
-        if (m_ForcedTeam == 0 || (int)p->GetTeam() == m_ForcedTeam)
-        {
+        if (p)
             SpecPlayer(targetIndex);
+        return;
+    }
+    
+    // If target is on the forced team, spec them
+    if (p && (int)p->GetTeam() == m_ForcedTeam)
+    {
+        SpecPlayer(targetIndex);
+        return;
+    }
+    
+    // Target is not on forced team or doesn't exist
+    // Find an alive player on the forced team to spectate
+    Player* currentSpec = Player::AsPlayer(CameraState::GetLocalObserverTarget());
+    
+    // If we're currently spectating someone on the forced team who is alive, stay with them
+    if (currentSpec && (int)currentSpec->GetTeam() == m_ForcedTeam && currentSpec->IsAlive())
+    {
+        return;
+    }
+    
+    // Find any alive player on the forced team
+    for (Player* player : Player::Iterable())
+    {
+        if ((int)player->GetTeam() == m_ForcedTeam && player->IsAlive())
+        {
+            SpecPlayer(player->GetEntity()->entindex());
+            return;
         }
     }
+    
+    // No alive players on forced team - stay where we are or go to roaming if target was invalid
 }
 
 void CameraTools::OnRocketSpawn(const CCommand& command)
