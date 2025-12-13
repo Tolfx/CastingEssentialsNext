@@ -57,6 +57,12 @@ CameraTools::CameraTools()
       ce_cameratools_dodgeball_enable("ce_cameratools_autodirector_dodgeball", "0", FCVAR_NONE,
                                       "Enables dodgeball camera logic (switch to rocket owner)."),
       ce_cameratools_spec_rocket("ce_cameratools_spec_rocket", "0", FCVAR_NONE, "Always spectate the rocket."),
+      ce_cameratools_rocket_smooth_enabled("ce_cameratools_rocket_smooth_enabled", "1", FCVAR_NONE,
+                                           "Enables smooth transitions when rocket changes target."),
+      ce_cameratools_rocket_smooth_speed("ce_cameratools_rocket_smooth_speed", "800", FCVAR_NONE,
+                                         "Speed of camera position smoothing for rocket camera (units per second)."),
+      ce_cameratools_rocket_smooth_angle_speed("ce_cameratools_rocket_smooth_angle_speed", "180", FCVAR_NONE,
+                                               "Speed of camera angle smoothing for rocket camera (degrees per second)."),
 
       ce_cameratools_spec_player_alive("ce_cameratools_spec_player_alive", "1", FCVAR_NONE,
                                        "Prevents spectating dead players."),
@@ -156,6 +162,8 @@ CameraTools::CameraTools()
 
     m_IsTaunting = false;
     m_ForcedTeam = 0;
+    m_LastRocketTarget = -1;
+    m_RocketCameraInitialized = false;
 
     // Parse the default values
     ParseTPLockValuesInto(&ce_tplock_default_pos, ce_tplock_default_pos.GetDefault(), m_TPLockDefault.m_Pos);
@@ -844,19 +852,31 @@ bool CameraTools::PerformRocketCamera(Vector& origin, QAngle& angles, float& fov
 {
     C_BaseEntity* observerTarget = CameraState::GetLocalObserverTarget();
     if (!observerTarget)
+    {
+        m_RocketCameraInitialized = false;
         return false;
+    }
 
     int targetIndex = observerTarget->entindex();
     IClientEntity* target = Interfaces::GetClientEntityList()->GetClientEntity(targetIndex);
     if (!target)
+    {
+        m_RocketCameraInitialized = false;
         return false;
+    }
 
     if (!target->GetClientClass() || strcmp(target->GetClientClass()->m_pNetworkName, "CTFProjectile_Rocket") != 0)
+    {
+        m_RocketCameraInitialized = false;
         return false;
+    }
 
     C_BaseEntity* rocket = target->GetBaseEntity();
     if (!rocket)
+    {
+        m_RocketCameraInitialized = false;
         return false;
+    }
 
     Vector velocity;
     // rocket->EstimateAbsVelocity(velocity);
@@ -867,10 +887,11 @@ bool CameraTools::PerformRocketCamera(Vector& origin, QAngle& angles, float& fov
         velocity = forward;
     }
 
-    VectorAngles(velocity, angles);
+    QAngle targetAngles;
+    VectorAngles(velocity, targetAngles);
 
     Vector forward;
-    AngleVectors(angles, &forward);
+    AngleVectors(targetAngles, &forward);
 
     Vector rocketOrigin = rocket->GetAbsOrigin();
 
@@ -883,7 +904,69 @@ bool CameraTools::PerformRocketCamera(Vector& origin, QAngle& angles, float& fov
     CTraceFilterNoNPCsOrPlayer noPlayers(nullptr, COLLISION_GROUP_NONE);
     UTIL_TraceHull(rocketOrigin, idealPos, WALL_MIN, WALL_MAX, MASK_SOLID, &noPlayers, &trace);
 
-    origin = trace.endpos;
+    Vector targetOrigin = trace.endpos;
+
+    // Apply smoothing if enabled
+    if (ce_cameratools_rocket_smooth_enabled.GetBool() && m_RocketCameraInitialized)
+    {
+        // Check if we switched to a different rocket
+        bool targetChanged = (m_LastRocketTarget != targetIndex);
+        
+        float frametime = Interfaces::GetEngineTool()->HostFrameTime();
+        if (frametime > 0.0f)
+        {
+            // Smooth position
+            float posSpeed = ce_cameratools_rocket_smooth_speed.GetFloat();
+            float maxPosDelta = posSpeed * frametime;
+            
+            Vector posDelta = targetOrigin - m_LastRocketCameraOrigin;
+            float posDistance = posDelta.Length();
+            
+            if (posDistance > maxPosDelta)
+            {
+                origin = m_LastRocketCameraOrigin + (posDelta / posDistance) * maxPosDelta;
+            }
+            else
+            {
+                origin = targetOrigin;
+            }
+            
+            // Smooth angles
+            float angSpeed = ce_cameratools_rocket_smooth_angle_speed.GetFloat();
+            float maxAngDelta = angSpeed * frametime;
+            
+            for (int i = 0; i < 3; i++)
+            {
+                float angDelta = AngleDistance(targetAngles[i], m_LastRocketCameraAngles[i]);
+                
+                if (fabs(angDelta) > maxAngDelta)
+                {
+                    angles[i] = AngleNormalize(m_LastRocketCameraAngles[i] + (angDelta > 0 ? maxAngDelta : -maxAngDelta));
+                }
+                else
+                {
+                    angles[i] = targetAngles[i];
+                }
+            }
+        }
+        else
+        {
+            origin = targetOrigin;
+            angles = targetAngles;
+        }
+    }
+    else
+    {
+        // No smoothing or first frame - use target values directly
+        origin = targetOrigin;
+        angles = targetAngles;
+    }
+
+    // Update state for next frame
+    m_LastRocketCameraOrigin = origin;
+    m_LastRocketCameraAngles = angles;
+    m_LastRocketTarget = targetIndex;
+    m_RocketCameraInitialized = true;
 
     return true;
 }

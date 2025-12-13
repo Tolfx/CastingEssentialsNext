@@ -76,6 +76,9 @@ private:
 
     ConVar ce_cameratools_dodgeball_enable;
     ConVar ce_cameratools_spec_rocket;
+    ConVar ce_cameratools_rocket_smooth_enabled;
+    ConVar ce_cameratools_rocket_smooth_speed;
+    ConVar ce_cameratools_rocket_smooth_angle_speed;
 
     ConVar ce_tplock_enable;
     ConVar ce_tplock_taunt_enable;
@@ -172,6 +175,12 @@ private:
 
     QAngle m_LastFrameAngle;
     Player* m_LastTargetPlayer;
+
+    // Rocket camera smoothing state
+    Vector m_LastRocketCameraOrigin;
+    QAngle m_LastRocketCameraAngles;
+    int m_LastRocketTarget;
+    bool m_RocketCameraInitialized;
 
     bool PerformTPLock(const TPLockRuleset& ruleset, Vector& origin, QAngle& angles, float& fov);
     bool PerformRocketCamera(Vector& origin, QAngle& angles, float& fov);
